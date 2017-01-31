@@ -1,0 +1,3 @@
+Protop email check. Monitors a given mail box to ensure that heart-beat emails are arriving.
+If an email does not appear within <delta>minutes of the expected time, sends an alert email.
+
