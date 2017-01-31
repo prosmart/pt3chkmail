@@ -1,4 +1,7 @@
 #!/usr/bin/perl
+#	perl program to check heartbeat emails for protop clients.
+#	if heartbeat email is not received within <delta> minutes of agreed time
+#	then send an alert email.
 
 our $VERSION = '1.00';
 
