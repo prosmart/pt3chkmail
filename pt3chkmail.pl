@@ -1,4 +1,5 @@
 #!/usr/bin/perl
+
 #	perl program to check heartbeat emails for protop clients.
 #	if heartbeat email is not received within <delta> minutes of agreed time
 #	then send an alert email.
@@ -11,12 +12,14 @@ use IMAP::Client;
 
 if( int(@ARGV) == 0 || grep( /^(-h|--help)$/i, @ARGV ) ){
    print "Example:\n";
-   print "   imapexpire.pl --user username --pass password --folders \"INBOX/%\" --age 7\n\n";
+   print "  pt3chkmail.pl --user username --pass password --subject "subject" --folders \"INBOX/%\" --delta 10\n\n";
    print "Required arguments:\n";
    print "   --user username         : The username to log in to IMAP with\n";
    print "   --pass password         : The password to log in to IMAP with\n";
    print "   --passfile file         : An alternative to --pass. File contains the password\n";
+   print "   --subject string        : Text to search for in Subject: header";
    print "   --folders f1 f2         : A list of folder search strings to find the folders\n";
+   print "   --delta num             : Delete emails over num days old\n\n";
    print "   --age num               : Delete emails over num days old\n\n";
    print "Optional arguments:\n";
    print "   --debug num             : Set a debug level from 1-9\n";
@@ -35,7 +38,7 @@ if( int(@ARGV) == 0 || grep( /^(-h|--help)$/i, @ARGV ) ){
 ## Parse the arguments
   my %options;
   {
-     my @req = qw( user folders age pass );
+     my @req = qw( user folders age pass delta subject);
      my @opt = qw( debug host port ssl tls authas test passfile );
 
      my @arg = @ARGV;
@@ -71,8 +74,11 @@ my $user   = $options{user}[0];
 my $pass   = $options{pass}[0];
 my $connect_methods = exists $options{ssl} ? 'SSL' : exists $options{tls} ? 'STARTTLS' : 'PLAIN';
 
-my $age = $options{age}[0];
-die "Bad age: $age\n" unless $age =~ /^-?\d+$/;
+my $delta = $options{delta}[0];
+die "Bad delta: $delta\n" unless $delta =~ /^-?\d+$/;
+
+#my $age = $options{age}[0];
+#die "Bad age: $age\n" unless $age =~ /^-?\d+$/;
 
 ## Connect via IMAP
   my $imap;
@@ -104,9 +110,9 @@ foreach my $item ( @{$options{folders}} ){
 }
 
 if( exists $options{test} ){
-   print "TEST  : You're running in test mode, so the deletions wont actually take place\n";
+   print "TEST  : You're running in test mode, so the actions wont actually take place\n";
 }
-print "ACTION: Delete mail which arrived before ".begin_date($age)." from: ".join(", ", @folders)."\n";
+print "ACTION: Check mail which arrived before ".begin_date($age)." from: ".join(", ", @folders)."\n";
 
 foreach my $folder ( @folders ){
 
@@ -115,12 +121,10 @@ foreach my $folder ( @folders ){
      next unless $info{EXISTS};
 
     ## Search for mail older than a certain date
-      my @uids = $imap->uidsearch( 'BEFORE '.begin_date($age) );
+      my @uids = $imap->uidsearch( 'SUBJECT '$subject 'ON '.begin_date($age) );
       next unless @uids;
 
-      print "Deleting ".int(@uids)." messages from $folder\n";
-
-    ## Delete the mail
+    ## Check the mail
       unless( exists $options{test} ){
          while( @uids ){
             my @foo = ();
