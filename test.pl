@@ -39,7 +39,7 @@ use Time::Seconds;
 ## Parse the arguments
 my %options;
 {
-   my @req = qw( user folders age pass delta subject);
+   my @req = qw( user folders pass delta subject);
    my @opt = qw( host port ssl tls test passfile );
 
    my @arg = @ARGV;
