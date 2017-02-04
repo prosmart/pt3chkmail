@@ -9,10 +9,12 @@ our $VERSION = '1.00';
 use strict;
 use warnings;
 use IMAP::Client;
+use Time::Piece;
+use Time::Seconds;
 
 if( int(@ARGV) == 0 || grep( /^(-h|--help)$/i, @ARGV ) ){
    print "Example:\n";
-   print "  pt3chkmail.pl --user username --pass password --subject "subject" --folders \"INBOX/%\" --delta 10\n\n";
+   print "  pt3chkmail.pl --user username --pass password --subject \"subject\" --folders \"INBOX/%\" --delta 10\n\n";
    print "Required arguments:\n";
    print "   --user username         : The username to log in to IMAP with\n";
    print "   --pass password         : The password to log in to IMAP with\n";
@@ -20,7 +22,6 @@ if( int(@ARGV) == 0 || grep( /^(-h|--help)$/i, @ARGV ) ){
    print "   --subject string        : Text to search for in Subject: header";
    print "   --folders f1 f2         : A list of folder search strings to find the folders\n";
    print "   --delta num             : Delete emails over num days old\n\n";
-   print "   --age num               : Delete emails over num days old\n\n";
    print "Optional arguments:\n";
    print "   --debug num             : Set a debug level from 1-9\n";
    print "   --ssl or --tls          : If you don't choose one of these it defaults to an\n";
@@ -38,7 +39,7 @@ if( int(@ARGV) == 0 || grep( /^(-h|--help)$/i, @ARGV ) ){
 ## Parse the arguments
   my %options;
   {
-     my @req = qw( user folders age pass delta subject);
+     my @req = qw( user folders pass delta subject);
      my @opt = qw( debug host port ssl tls authas test passfile );
 
      my @arg = @ARGV;
@@ -72,13 +73,11 @@ if( int(@ARGV) == 0 || grep( /^(-h|--help)$/i, @ARGV ) ){
 
 my $user   = $options{user}[0];
 my $pass   = $options{pass}[0];
+my $subject   = $options{subject}[0];
 my $connect_methods = exists $options{ssl} ? 'SSL' : exists $options{tls} ? 'STARTTLS' : 'PLAIN';
 
 my $delta = $options{delta}[0];
 die "Bad delta: $delta\n" unless $delta =~ /^-?\d+$/;
-
-#my $age = $options{age}[0];
-#die "Bad age: $age\n" unless $age =~ /^-?\d+$/;
 
 ## Connect via IMAP
   my $imap;
@@ -112,35 +111,58 @@ foreach my $item ( @{$options{folders}} ){
 if( exists $options{test} ){
    print "TEST  : You're running in test mode, so the actions wont actually take place\n";
 }
-print "ACTION: Check mail which arrived before ".begin_date($age)." from: ".join(", ", @folders)."\n";
+print "ACTION: Check mail which arrived before ".begin_date()." from: ".join(", ", @folders)."\n";
 
 foreach my $folder ( @folders ){
 
    ## Select the mailbox and check that it contains at least 1 email
-     my %info = $imap->select( $folder ) or die "$folder: ".$imap->error;
-     next unless $info{EXISTS};
+   my %info = $imap->select( $folder ) or die "$folder: ".$imap->error;
+   next unless $info{EXISTS};
 
-    ## Search for mail older than a certain date
-      my @uids = $imap->uidsearch( 'SUBJECT '$subject 'ON '.begin_date($age) );
-      next unless @uids;
+   ## Search for mail older than a certain date
+#   my @uids = $imap->uidsearch( 'SUBJECT '"$subject" 'ON '.begin_date() );
+   my @uids = $imap->uidsearch( 'ON '.begin_date() );
+   next unless @uids;
 
-    ## Check the mail
-      unless( exists $options{test} ){
-         while( @uids ){
-            my @foo = ();
-            while( @uids && int(@foo) < 1000 ){
-               push @foo, shift @uids;
-            }
-            $imap->uidstore(join(',',@foo),'+FLAGS.SILENT',$imap->buildflaglist('\Deleted'));
-            $imap->expunge();
-         }
-      }
+   foreach my $msg (@uids) {
+      printf( "%s\t", $msg );
+   }
+
 }
+   ## Check the mail
+#   while( @uids ){
+#      my @foo = ();
+#      while( @uids && int(@foo) < 1000 ){
+#	 my $datetime = $imap->get_header(@uids);
+#         push @foo, shift @uids;
+#      }
+#      $imap->uidstore(join(',',@foo),'+FLAGS.SILENT',$imap->buildflaglist('\Deleted'));
+#      $imap->expunge();
+#   }
+#}
+#      unless( exists $options{test} ){
+#         while( @uids ){
+#            my @foo = ();
+#            while( @uids && int(@foo) < 1000 ){
+#               push @foo, shift @uids;
+#            }
+#            $imap->uidstore(join(',',@foo),'+FLAGS.SILENT',$imap->buildflaglist('\Deleted'));
+#            $imap->expunge();
+#         }
+#      }
+#}
 
 sub begin_date {
-   my $days = $_[0]-1;
 
    my @months = qw( Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec );
-   my( $mday, $mon, $year, ) = ( localtime( time - ($days*86400) ) )[3..5];
+   my( $mday, $mon, $year, ) = ( localtime( time ) )[3..5];
    return sprintf( '%s-%s-%s', $mday, $months[$mon], $year+1900, );
 }
+
+# sub begin_date {
+#    my $days = $_[0]-1;
+# 
+#    my @months = qw( Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec );
+#    my( $mday, $mon, $year, ) = ( localtime( time - ($days*86400) ) )[3..5];
+#    return sprintf( '%s-%s-%s', $mday, $months[$mon], $year+1900, );
+# }
